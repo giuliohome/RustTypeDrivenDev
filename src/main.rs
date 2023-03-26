@@ -76,7 +76,9 @@ fn main() {
     match  arr.first() {
         Some(word) =>  
             {
-                for x in word.chars().progress() {
+                for x in word.chars()
+		    .collect::<Vec<char>>().iter()
+		    .progress().with_bound() {
                             expensive_calculation(x);
                             print!("{}!", x);
                         }
