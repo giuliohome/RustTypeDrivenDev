@@ -10,12 +10,21 @@ fn expensive_calculation<T>(_n: T) {
 
 struct Progress<T> {
     iter: T,
-    i: usize
+    i: usize,
+    bound: Option<usize>
 }
 impl<T> Progress<T> {
     fn new(iter: T) -> Self {
-        Progress { iter, i: 0 }
+        Progress { iter, i: 0, bound: None }
     }  
+}
+
+impl<T> Progress<T>
+where T: ExactSizeIterator {
+    pub fn with_bound(mut self) -> Self {
+	self.bound = Some (self.iter.len());
+	self
+    }
 }
 
 impl<T> Iterator for Progress<T> 
@@ -23,8 +32,13 @@ where T:Iterator {
     type Item = T::Item;
     fn next(&mut self) -> Option<Self::Item> {
         clear_screen();
-        println!("{}","*".repeat(self.i ));
-        self.i += 1;
+       
+        match self.bound {
+	    Some(bound) =>
+		println!("[{}{}]","*".repeat(self.i )," ".repeat(bound - self.i)),
+	    None =>  println!("{}","*".repeat(self.i ))
+	}
+	self.i += 1;
         self.iter.next()
     }
 }
@@ -42,7 +56,7 @@ impl<T> ProgressIterExt for T {
 fn main() {
     let v = vec![1,2,3];
     // progress(v.iter(), expensive_calculation);
-    for n in Progress::new(v.iter()) {
+    for n in v.iter().progress().with_bound() {
         expensive_calculation(n);
     }
 
@@ -52,7 +66,7 @@ fn main() {
     let mut h = HashSet::new();
     h.insert(0);
     // progress(h.iter(), expensive_calculation);
-    for n in h.iter().progress() {
+    for n in h.iter().progress().with_bound() {
         expensive_calculation(n);
     }
 
