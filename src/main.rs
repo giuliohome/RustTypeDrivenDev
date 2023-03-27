@@ -8,55 +8,90 @@ fn expensive_calculation<T>(_n: T) {
     sleep(Duration::from_secs(1));
 }
 
-struct Progress<T> {
-    iter: T,
-    i: usize,
-    bound: Option<usize>
-}
-impl<T> Progress<T> {
-    fn new(iter: T) -> Self {
-        Progress { iter, i: 0, bound: None }
-    }  
+struct Unbounded;
+struct Bounded {
+    bound: usize,
+    delims: (char, char)
 }
 
-impl<T> Progress<T>
+struct Progress<T, B> {
+    iter: T,
+    i: usize,
+    bound: B
+}
+
+trait ProgressDisplay: Sized {
+    fn display<T>(&self, progress: &Progress<T, Self>);
+}
+
+impl ProgressDisplay for Bounded {
+    fn display<T>(&self, progress: &Progress<T, Self>) {
+	println!("{}{}{}{}",
+		 self.delims.0,
+		 "*".repeat(progress.i ),
+		 " ".repeat(self.bound - progress.i),
+		 self.delims.1);
+    }    
+}
+
+impl ProgressDisplay for Unbounded {
+    fn display<T>(&self, progress: &Progress<T, Self>) {
+	println!("{}","*".repeat(progress.i ));
+    }    
+}
+
+impl<T> Progress<T, Unbounded> {
+    fn new(iter: T) -> Self {
+        Progress { iter, i: 0, bound: Unbounded }
+    }   
+}
+
+impl<T> Progress<T, Unbounded>
 where T: ExactSizeIterator {
-    pub fn with_bound(mut self) -> Self {
-	self.bound = Some (self.iter.len());
-	self
+    pub fn with_bound(mut self) -> Progress<T, Bounded> {
+	let bound = Bounded {
+	    bound: self.iter.len(),
+	    delims: ('[',']')
+	};
+	Progress { i: self.i, iter: self.iter, bound}
     }
 }
 
-impl<T> Iterator for Progress<T> 
-where T:Iterator {
+impl<T,B> Iterator for Progress<T,B> 
+where T:Iterator, B: ProgressDisplay {
     type Item = T::Item;
     fn next(&mut self) -> Option<Self::Item> {
         clear_screen();
-       
-        match self.bound {
-	    Some(bound) =>
-		println!("[{}{}]","*".repeat(self.i )," ".repeat(bound - self.i)),
-	    None =>  println!("{}","*".repeat(self.i ))
-	}
+        self.bound.display(&self);
+        
 	self.i += 1;
         self.iter.next()
     }
 }
 
+impl<T> Progress<T, Bounded> {
+    pub fn with_delims(mut self, delims: (char, char))  -> Self {
+	self.bound.delims = delims;
+	self
+    }
+}
+
 trait ProgressIterExt: Sized {
-    fn progress(self) -> Progress<Self>;
+    fn progress(self) -> Progress<Self, Unbounded>;
 }
 
 impl<T> ProgressIterExt for T {
-    fn progress(self) -> Progress<Self>{
+    fn progress(self) -> Progress<Self, Unbounded>{
         Progress::new(self)
     }
 }
 
 fn main() {
+    let brkts = ('{','}');
     let v = vec![1,2,3];
     // progress(v.iter(), expensive_calculation);
-    for n in v.iter().progress().with_bound() {
+    for n in v.iter()
+	.progress().with_bound().with_delims(brkts) {
         expensive_calculation(n);
     }
 
@@ -77,8 +112,8 @@ fn main() {
         Some(word) =>  
             {
                 for x in word.chars()
-		    .collect::<Vec<char>>().iter()
-		    .progress().with_bound() {
+		    // .collect::<Vec<char>>().iter()
+		    .progress() {
                             expensive_calculation(x);
                             print!("{}!", x);
                         }
